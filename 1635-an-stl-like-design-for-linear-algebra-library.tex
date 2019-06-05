@@ -38,24 +38,170 @@ choosing the correct algorithm is straightforward as well, often as simple as
 \end{codecpp}
 
 The problems arise when one tries to deal with operators. For example, how
-should the expression \inlinecode{a+b}
-
-One of the major movements in the past couple of standards has been a move
-towards using ranges and views. In addition to this, the linear algebra
-libraries in C++ have often made use of expression templates.
+should the expression \inlinecode{a+b}. Should we return a view? Or an
+expression template? Or are we consuming a temporary and hence, should return by
+value. How to deal with \inlinecode{a+b} where \inlinecode{a} and \inlinecode{b}
+might belong to a different library. In current setups, there is no hope of
+interoperability, because none/both of the libraries might implement
+\inlinecode{a+b}. Both the situations are not ideal.
+Is there a way to provide some interoperability? Optimal interoperability will
+still require one to be careful, but can we provide a way to do it in a way that
+is consistent with other good practices in C++?
 
 \subsection{What this paper is not?}
+This is not a proposal about including certain linear algebra types or functions
+in the standard library. Rather, it is a paper which presents how the types and
+functions can be designed to allow them to interact with one another. As a
+result, the types used in this paper are minimal in order to highlight the
+requirements that we wish to impose on the types.
 
-\section{Owning Types}
+\section{Some Traits}
+\begin{codecpp}{Supporting Traits}
+// Inherit from std::true_type if all the `Tp`s have a member typedef
+// `engine_type` else inherit from std::false_type
+template <class... Tp>
+struct is_engine_aware {
+};
+
+// Inherit from std::true_type if all the `Tp`s have a member typedef
+// `engine_type` and the type `engine_type` is convertible to `E` else inherit
+// from std::false_type
+template <typename E, typename... T>
+struct uses_engine {
+};
+
+
+// Inherit from std::true_type if all the `Tp`s have a member typedef
+// `is_owning_type` and the type `is_owning_type` is convertible to
+// `std::true_type` else inherit from std::false_type
+template <class Tp>
+struct is_owning_type {
+};
+
+// Inherit from std::true_type if any one of the `T` satisfy both of the
+// following properties:
+// 1. std::is_owning_type_v<std::remove_cv_ref_t<T>> is true
+// 2. std::is_rvalue_reference_v<T> is true
+template <typename... T>
+struct is_consuming_owning_type {
+};
+\end{codecpp}
+
+
+
 \section{Engine-Aware Types}
-\section{Engine-Based Operators}
+
+\begin{codecpp}{An Engine-Aware Owning Type}
+  template<typename E>
+  class vector {
+  public:
+    using engine_type = E;
+    using is_owning_type = std::true_type;
+
+  public:
+    template <typename NE>
+    auto change_engine() && -> vector<NE>;
+
+    template <typename NE>
+    auto change_engine() & -> vector_view<NE, vector<E>>;
+
+    template <typename NE>
+    auto change_engine() const& -> vector_view<NE, vector<E> const>;
+  };
+\end{codecpp}
+
+\begin{codecpp}{An Engine-Aware View/Expression Type}
+  template<typename E>
+  class vector_view {
+  public:
+    using engine_type = E;
+    using is_owning_type = std::false_type;
+
+  public:
+    template <typename NE>
+    auto change_engine() const -> vector_view<NE, owning_type>;
+  };
+\end{codecpp}
+
+\section{Engine and Engine-Based Operators}
+
+\begin{codecpp}{Engine and Engine-Based Operator}
+struct serial_cpu_engine;
+
+template <typename T, typename U>
+struct addition_traits {
+  using result_type = X ; // X can be determined using any logic required
+};
+
+template <typename T, typename U>
+struct addition_engine {
+  auto operator()(T&& t, U&& u) -> addition_traits_r<T, U>
+  {
+    auto const size = t.size();
+    auto result = addition_traits_r<T, U>(size);
+    for (std::size_t i = 0; i < size; ++i) {
+      result(i) = t(i) + u(i);
+    }
+  }
+};
+
+template <typename T,
+          typename U,
+          typename = std::enable_if<
+            std::experimental::math::uses_engine_v<serial_cpu_engine, T, U>>>
+auto operator+(T&& t, U&& u) -> addition_traits_r<T&&, U&&>
+{
+  auto constexpr ae = addition_engine<T, U>();
+  return ae(std::forward<T>(t), std::forward<U>(u));
+}
+
+template <typename T,
+          typename U,
+          typename = std::enable_if<
+            std::experimental::math::uses_engine_v<serial_cpu_engine, T, U>>>
+auto operator+(T&& t, U&& u) -> addition_traits_r<T&&, U&&>
+{
+  return t.change_engine<some_other>() + u.change_engine<some_other>();
+}
+
+\end{codecpp}
 \section{Some Musings on Design Decisions}
-\subsection{Offloading Computation}
 \subsection{Use of ADL in Detection of Correct Operator Namespace}
 Justification and Pitfalls (Could also be thought of as good design decisions.)
+
 Good practice is not to write operators for linear algebra types but instead
 write them for the engines.
+\subsection{More Fine Tuned Traits}
+Arbitrarily more finely tuned traits can be taken care of the
+\inlinecode{addition\_traits}.  But we should be careful as to prevent trait
+explosion.
+\begin{enumerate}
+  \item  `Sparsity`  trait definitely needed
+  \item  `Host/Device` trait should be useful
+  \item  Access Pattern Traits
+\end{enumerate}
 \section{Example}
+
+\begin{codecpp}{Example of How the Code Might Look}
+
+  using sce = std::math::serial_cpu_engine;
+  using pce =custom_lib::parallel_cpu_engine;
+  using stdvec = std::math::vector;
+  using custvec = another_lib::vector;
+
+  auto const ov1 = stdvec<sce>(arg...);
+  auto const ov2 = custvec<sce>(arg...);
+
+  auto const view_3 = ov1 + ov2;
+
+  auto const view_4 = ov1.change_engine<pce>();
+  auto const ov5 = (custvec<sce>(args...)).change_engine<pce>();
+
+  auto const view_6 = view_4 + ov5;
+
+  auto const ov7 = stdvec<pce>(args...) + ov1;
+
+\end{codecpp}
 \section{Acknowledgement}
 A lot of ideas have been gathered by participating in the SG15 Linear Algebra
 SIG discussions, reading the codebases like Eigen, MTL, Blaze and others etc.
