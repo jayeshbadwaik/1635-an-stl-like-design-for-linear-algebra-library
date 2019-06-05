@@ -48,6 +48,13 @@ Is there a way to provide some interoperability? Optimal interoperability will
 still require one to be careful, but can we provide a way to do it in a way that
 is consistent with other good practices in C++?
 
+
+This also lowers the expectation on the standard library design itself. Because
+if the there is something which is not there in the standard library or if the
+standard library for some reason or the another is not the fastest option, then
+people can use other libraries without having to completely redesign their
+code/introduce expensive copies.
+
 \subsection{What this paper is not?}
 This is not a proposal about including certain linear algebra types or functions
 in the standard library. Rather, it is a paper which presents how the types and
