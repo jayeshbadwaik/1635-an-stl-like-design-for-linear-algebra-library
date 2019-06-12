@@ -10,32 +10,63 @@
 \begin{document}
 \maketitle[\value{page}]
 \begin{abstract}
-  A linear algebra library is being currently being considered for
-  standardization.  In this paper, we present some of the techniques that will
-  allow us to design a library that will allow interoperability with other
-  suitably-designed linear algebra libraries. The design is inspired from the
-  design of the standard template library in C++ and its ability to allow the
-  user to use custom types with standard algorithms and vice versa.
+  A linear algebra library is currently being considered for standardization in
+  the C++ standard library through \cite{GuyDavidson2019}. Among other things,
+  the above paper puts forth the objective of providing facilities and
+  techniques for customization that enable users to optimize performance for
+  their specific needs in a manner that only requires them to implement a
+  minimal set of types and functions to integrate it with the rest of the linear
+  algebra libraries.
+
+  In this paper, we claim that a well-designed set of requirements imposed on
+  the types and the functions allow us to write a linear algebra library which
+  fulfills the above two objectives.  We also claim that the design allows one
+  to carry out operation between types of libraries designed as above without
+  having to perform generate additional temporaries for the purpose of
+  compatibility of the two libraries. As the name suggests, the design is
+  motivated by the design of the Standard Template Library which also follows
+  the similar philosophy of making functionality available to the user if they
+  implement types which satisfy a certain set of requirements.
 \end{abstract}
 
 \section{Introduction}
+Following from the motivation of \cite{GuyDavidson2019a},
+\cite{GuyDavidson2019a} presents a design of linear algebra library that tries
 For some years now, there have been efforts to add a linear algebra library in
-the C++ standard library.  One of the motivations has been to provide
+the C++ standard library.
+
+Standardization of library comes with varied requirements.
+\begin{enumerate}
+  \item The design is supposed to be general enough to handle almost all the use
+    cases.
+  \item The design is supposed
+\end{enumerate}
+
+Survey of past linear algebra libraries and the challenges and advantages of
+various designs therein. (P1417R0)
+
+Operators are important, why? Generic algorithm. Examples. How operators
+differ.  Deciding which algorithm to use to implement operators. Why are
+operators important?
+
+Other challenges:
+About expression templates refer to Klaus Igelberger paper. Move operations in
+C++, and problems with expresion templates.
+
+
+
+Additional challenges that the standard library imposes.
+\begin{enumerate}
+  \item Slow-moving
+  \item backward compatibility
+  \item Implementation challenges (PSTL)
+  \item Some sort of future proofing
+\end{enumerate}
+
+
 common vocabulary types to allow different code bases to use each other without
-having to make intermediate copies. The other factor which is generally
-important is to recognize the sparsity in the data structures and . The way
-The focus of those papers mainly
-deals with the types and algorithms which would be useful in a standardized
-linear algebra library.
+having to make intermediate copies.
 
-
-The named functions themselves are often not a problem because one almost
-always, one can choose the correct algorithms based on the context. Furthermore,
-choosing the correct algorithm is straightforward as well, often as simple as
-\begin{codecpp}{Calling a Custom Function}
-  std::some_algorithm(custom_execution_policy, arguments...);
-  custom_lib::custom_algorithm(custom_execution_policy, arguments...);
-\end{codecpp}
 
 The problems arise when one tries to deal with operators. For example, how
 should the expression \inlinecode{a+b}. Should we return a view? Or an
@@ -48,6 +79,31 @@ Is there a way to provide some interoperability? Optimal interoperability will
 still require one to be careful, but can we provide a way to do it in a way that
 is consistent with other good practices in C++?
 
+
+Single type/library design. Dilemna of mixing library types.
+\begin{enumerate}
+  \item Comparison with `std::vector`, `boost::vector`,
+    In most algorithms, one can use all the three without any functional
+    difference.
+
+  \item Why should linear algebra be different?
+
+  \item At some point, people will need different types.
+
+  \item Much more beneficial in our opinion to allow a design which accomodates
+    different types rather than ask everyone to use a single type, however good
+    that type is.
+
+  \item Same goes for algorithms.
+
+  \item This also lowers the expectation on the standard library to implement
+    all types. This ensures that people can keep using standard library types
+    and algorithms for their daily use without having to completely throw them
+    away in cases where they wish to use something else.
+\end{enumerate}
+
+So, allow the user to be able to custom define operations like \inlinecode{a+b}
+where a and b belong to different libraries.
 
 This also lowers the expectation on the standard library design itself. Because
 if the there is something which is not there in the standard library or if the
@@ -210,7 +266,7 @@ explosion.
 
 \end{codecpp}
 \section{Acknowledgement}
-A lot of ideas have been gathered by participating in the SG15 Linear Algebra
+A lot of ideas have been gathered by participating in the SG14 Linear Algebra
 SIG discussions, reading the codebases like Eigen, MTL, Blaze and others etc.
 While I have tried to credit the ideas wherever necessary, if you find your
 ideas being used in the code without credit, I apologize in advance. Also, I
@@ -218,7 +274,7 @@ would be grateful if you could bring them to my attention so that I could write
 them as such.
 
 The idea of offloading the computations to an engine is inspired from
-\cite{GuyDavidson2018}. The idea to use execution policy is inspired from MTL
+\cite{GuyDavidson2019}. The idea to use execution policy is inspired from MTL
 \incomplete{Check this?}.
 
 
