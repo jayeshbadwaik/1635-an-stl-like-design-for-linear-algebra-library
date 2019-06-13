@@ -18,51 +18,35 @@
   minimal set of types and functions to integrate it with the rest of the linear
   algebra libraries.
 
-  In this paper, we claim that a well-designed set of requirements imposed on
+  In this paper, we how a well-designed set of requirements imposed on
   the types and the functions allow us to write a linear algebra library which
-  fulfills the above two objectives.  We also claim that the design allows one
+  fulfills the above two objectives.  We also show how the design allows one
   to carry out operation between types of libraries designed as above without
   having to perform generate additional temporaries for the purpose of
-  compatibility of the two libraries. As the name suggests, the design is
-  motivated by the design of the Standard Template Library which also follows
-  the similar philosophy of making functionality available to the user if they
-  implement types which satisfy a certain set of requirements.
+  compatibility of the two libraries.
 \end{abstract}
 
 \section{Introduction}
-Following from the motivation of \cite{GuyDavidson2019a},
-\cite{GuyDavidson2019a} presents a design of linear algebra library that tries
-For some years now, there have been efforts to add a linear algebra library in
-the C++ standard library.
+Consider the following code
+\begin{codecpp}{Multiplication Operator Between A Vector and a Matrix}
+  auto const x = a::f(); // Returns vector x of type a::vector
+  auto const A = b::g(); // Returns a matrix b of type b::matrix
+  auto const b = A * x;
+\end{codecpp}
 
-Standardization of library comes with varied requirements.
-\begin{enumerate}
-  \item The design is supposed to be general enough to handle almost all the use
-    cases.
-  \item The design is supposed
-\end{enumerate}
+In most of the code today, one cannot compile this code and instead one has to
+first convert either \inlinecode{a} to a type which is understandable by library
+\inlinecode{b}.
 
-Survey of past linear algebra libraries and the challenges and advantages of
-various designs therein. (P1417R0)
-
+Talk about objective, talk about how the objectives show themselves in terms of
+customization, operator algebra and other things. Discuss Blaze library
+multiplication. Discuss difficulties of move operations with a+b. and so on.
 Operators are important, why? Generic algorithm. Examples. How operators
 differ.  Deciding which algorithm to use to implement operators. Why are
-operators important?
-
-Other challenges:
+operators important? Discuss expression templates.
 About expression templates refer to Klaus Igelberger paper. Move operations in
-C++, and problems with expresion templates.
-
-
-
-Additional challenges that the standard library imposes.
-\begin{enumerate}
-  \item Slow-moving
-  \item backward compatibility
-  \item Implementation challenges (PSTL)
-  \item Some sort of future proofing
-\end{enumerate}
-
+C++, and problems with expresion templates. Finally, discuss the situation about
+different library types.
 
 common vocabulary types to allow different code bases to use each other without
 having to make intermediate copies.
@@ -111,14 +95,27 @@ standard library for some reason or the another is not the fastest option, then
 people can use other libraries without having to completely redesign their
 code/introduce expensive copies.
 
-\subsection{What this paper is not?}
+\subsection{Some Comments about the Paper}
 This is not a proposal about including certain linear algebra types or functions
 in the standard library. Rather, it is a paper which presents how the types and
-functions can be designed to allow them to interact with one another. As a
-result, the types used in this paper are minimal in order to highlight the
-requirements that we wish to impose on the types.
+functions can be designed to allow types from different library to interact
+with one another. Therefore the types presented in this paper are minimal in
+that, only the features required to highlight the functionality are implemented.
+
+We are aware that a lot of language in the paper can be rewritten in the
+form of Concepts but we are not comfortable with the language and decided to use
+a traits based exposition in order to make sure that we do not introduce
+additional errors in the papers.
+
+\subsection{A Comment about the Code}
 
 \section{Some Traits}
+We start with introducing some trait types which will be useful for the
+discussion
+
+isvector trait
+ismatrix trait
+
 \begin{codecpp}{Supporting Traits}
 // Inherit from std::true_type if all the `Tp`s have a member typedef
 // `engine_type` else inherit from std::false_type
@@ -153,6 +150,12 @@ struct is_consuming_owning_type {
 
 
 \section{Engine-Aware Types}
+The dilemna for defining `a+b` without copy comes from the fact that if one
+follows the good practices of not declaring operator for in the namespace of
+someone else, neither `a` nor `b` nor the user `c` can define the
+`operator+(a,b)`. We resolve this difficulty as follows:
+
+
 
 \begin{codecpp}{An Engine-Aware Owning Type}
   template<typename E>
@@ -229,6 +232,8 @@ auto operator+(T&& t, U&& u) -> addition_traits_r<T&&, U&&>
 
 \end{codecpp}
 \section{Some Musings on Design Decisions}
+Compile Times due to SFINAE
+IsVector trait
 \subsection{Use of ADL in Detection of Correct Operator Namespace}
 Justification and Pitfalls (Could also be thought of as good design decisions.)
 
@@ -268,15 +273,6 @@ explosion.
 \section{Acknowledgement}
 A lot of ideas have been gathered by participating in the SG14 Linear Algebra
 SIG discussions, reading the codebases like Eigen, MTL, Blaze and others etc.
-While I have tried to credit the ideas wherever necessary, if you find your
-ideas being used in the code without credit, I apologize in advance. Also, I
-would be grateful if you could bring them to my attention so that I could write
-them as such.
-
-The idea of offloading the computations to an engine is inspired from
-\cite{GuyDavidson2019}. The idea to use execution policy is inspired from MTL
-\incomplete{Check this?}.
-
 
 \printbibliography
 \end{document}
