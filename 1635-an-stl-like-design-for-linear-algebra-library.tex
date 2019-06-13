@@ -4,39 +4,70 @@
 
 \subject{}
 \subtitle{}
-\title{D1635R0 : An STL-like Design for Linear Algebra Library}
+\title{D1635R0 : A Design for an Inter-Operable and Customizable Linear Algebra Library}
 \author{Jayesh Badwaik}
 
 \begin{document}
 \maketitle[\value{page}]
 \begin{abstract}
   A linear algebra library is currently being considered for standardization in
-  the C++ standard library through \cite{GuyDavidson2019}. Among other things,
-  the above paper puts forth the objective of providing facilities and
-  techniques for customization that enable users to optimize performance for
-  their specific needs in a manner that only requires them to implement a
-  minimal set of types and functions to integrate it with the rest of the linear
-  algebra libraries.
-
-  In this paper, we how a well-designed set of requirements imposed on
-  the types and the functions allow us to write a linear algebra library which
-  fulfills the above two objectives.  We also show how the design allows one
-  to carry out operation between types of libraries designed as above without
-  having to perform generate additional temporaries for the purpose of
-  compatibility of the two libraries.
+  the C++ standard library through \cite{GuyDavidson2019}.
+  In this paper, we show how a well-designed set of requirements imposed on the
+  types and the functions allow the users to write their linear algebra library
+  that allows interoperability between libraries while preserving the objectives
+  laid out for the library.
 \end{abstract}
 
 \section{Introduction}
-Consider the following code
-\begin{codecpp}{Multiplication Operator Between A Vector and a Matrix}
-  auto const x = a::f(); // Returns vector x of type a::vector
-  auto const A = b::g(); // Returns a matrix b of type b::matrix
-  auto const b = A * x;
-\end{codecpp}
 
-In most of the code today, one cannot compile this code and instead one has to
-first convert either \inlinecode{a} to a type which is understandable by library
-\inlinecode{b}.
+In the past few years, there has been an effort to a linear algebra library to
+the standard library. The motivations for the effort can be found in
+\cite{GuyDavidson2019a}. There are already quite a few papers in flight
+concerning the design, with the primary one being \cite{GuyDavidson2019}. The
+papers are mostly concerned with the design of standard library itself and as
+such, do not deal with interaction of the standard library with user-implemented
+linear algebra libraries.  This means that some aspects of the design are not
+covered in the papers. We illustrate some of the aspects in
+
+This paper is in that sense a little more abstract. Instead of laying out a
+collection of types and functions for the linear algebra, we layout a set of
+requirements for the types of user-written library to satisfy in order to allow
+for the libraries to be interoperable with the standard library and with each
+other. We illustrate a selection of the problems that motivated this paper
+
+
+Consider the following code
+\begin{codecpp}{Multiplication Operator Between A Vector and a Matrix from
+  Different Libraries}
+  auto const x = a::f();  // Returns vector x of type a::vector
+  auto const A = b::g();  // Returns a matrix b of type b::matrix
+  auto const b = A * x;   // ERROR: operator* not defined!!
+\end{codecpp}
+In general, there will not be an \inlinecode{operator*} defined for the types
+\inlinecode{a::vector} and \inlinecode{b::matrix}. In fact, there is no good way
+to define an \inlinecode{operator*} in this case without invading on one of the
+two namespaces.  One of the solutions to these problems is to specify some
+vocabulary types and then expect all users to use the given vocabulary types.
+But this approach imposes a restriction on the types that can be designed for
+use with the linear algebra library, and make including new paradigms difficult
+to achieve.
+
+Consider another example as shown below:
+\begin{codecpp}{Multiplication Operator Between A Vector and a Matrix}
+  auto const x = a::f();  // Returns vector x of type a::vector
+  auto const A = a::g();  // Returns a matrix b of type a::matrix
+  auto const b = A * x;   // Assume that operator* is serial (not parallel)
+\end{codecpp}
+Assume that the \inlinecode{operator*} is serial in this case. But suppose that
+the user wants to allow the computation to be parallel (or probably offloaded to
+the GPU) in only some places in the code while requiring the computation to run
+in serial in other places. There can be quite a few scenarios where such a
+behavior is desirable. For example, it is possible that the operator which is
+expected to run in serial is already a part of a parallelly-executed code
+segment.
+
+Apart from these problems, there are other issues which need to be
+tackled
 
 Talk about objective, talk about how the objectives show themselves in terms of
 customization, operator algebra and other things. Discuss Blaze library
@@ -111,40 +142,40 @@ additional errors in the papers.
 
 \section{Some Traits}
 We start with introducing some trait types which will be useful for the
-discussion
+discussion later.
 
-isvector trait
-ismatrix trait
-
-\begin{codecpp}{Supporting Traits}
+\begin{codecpp}{Engine-Aware Trait}
 // Inherit from std::true_type if all the `Tp`s have a member typedef
 // `engine_type` else inherit from std::false_type
-template <class... Tp>
-struct is_engine_aware {
-};
+template <typename... Tp>
+struct is_engine_aware;
+\end{codecpp}
 
+\begin{codecpp}{Uses-Engine Trait}
 // Inherit from std::true_type if all the `Tp`s have a member typedef
 // `engine_type` and the type `engine_type` is convertible to `E` else inherit
 // from std::false_type
-template <typename E, typename... T>
-struct uses_engine {
-};
+template <typename E, typename... Tp>
+struct uses_engine ;
+\end{codecpp}
+
+
+
+\begin{codecpp}{Supporting Traits}
 
 
 // Inherit from std::true_type if all the `Tp`s have a member typedef
 // `is_owning_type` and the type `is_owning_type` is convertible to
 // `std::true_type` else inherit from std::false_type
-template <class Tp>
-struct is_owning_type {
-};
+template <typename... Tp>
+struct is_owning_type ;
 
 // Inherit from std::true_type if any one of the `T` satisfy both of the
 // following properties:
 // 1. std::is_owning_type_v<std::remove_cv_ref_t<T>> is true
 // 2. std::is_rvalue_reference_v<T> is true
-template <typename... T>
-struct is_consuming_owning_type {
-};
+template <typename... Tp>
+struct is_consuming_owning_type;
 \end{codecpp}
 
 
