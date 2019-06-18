@@ -20,126 +20,119 @@
 
 \section{Introduction}
 
-In the past few years, there has been an effort to a linear algebra library to
-the standard library. The motivations for the effort can be found in
+In the past few years, there has been an effort to add a linear algebra library
+to the standard library. The motivations for the effort can be found in
 \cite{GuyDavidson2019a}. There are already quite a few papers in flight
 concerning the design, with the primary one being \cite{GuyDavidson2019}. The
-papers are mostly concerned with the design of standard library itself and as
-such, do not deal with interaction of the standard library with user-implemented
-linear algebra libraries.  This means that some aspects of the design are not
-covered in the papers. We illustrate some of the aspects in
+primary idea behind the design in the paper is to provide a collection of
+standard linear algebra types and functions with facilities for customization
+for special purposes.
 
-This paper is in that sense a little more abstract. Instead of laying out a
-collection of types and functions for the linear algebra, we layout a set of
-requirements for the types of user-written library to satisfy in order to allow
-for the libraries to be interoperable with the standard library and with each
-other. We illustrate a selection of the problems that motivated this paper
+There is another approach which one can pursue, wherein, we ask the
+types implemented by the standard library and the user alike to satisfy certain
+requirements and then write generic code for those types. This is the idea which
+is primarily employed by the standard template library.
+In this paper, we take the second approach to the design of a linear algebra
+library.
 
+Now, while the two approach do look different in principle, the
+practical considerations involved and the resulting design from the two
+approaches might end up being  very similar.  For example, in absence of
+well-designed types and functions in the standard library, the approach in this
+paper has a potential to create disparate and fragmented types and engines with
+possibly sub-par implementations.  A well-designed standard library types in the
+spirit of \cite{GuyDavidson2019} will go a long way towards acting as a
+deterrent to such implementations.
 
-Consider the following code
-\begin{codecpp}{Multiplication Operator Between A Vector and a Matrix from
-  Different Libraries}
-  auto const x = a::f();  // Returns vector x of type a::vector
-  auto const A = b::g();  // Returns a matrix b of type b::matrix
-  auto const b = A * x;   // ERROR: operator* not defined!!
-\end{codecpp}
+This reasoning is not very different from the reasoning today wherein we can
+confidently refer people to use \inlinecode{std::vector} for most purposes even
+though, technically, anyone can write their own \inlinecode{vector}
+implementation and it will work with other parts of standard library just fine.
+
+For named functions, there is not anything significantly different about linear
+algebra types as to require a special attention in contrast with standard
+library types. The situation however changes when one begins talking about
+operators. Operators make the code quite readable and hence are considered quite
+desirable in the linear algebra community, however, this also means that
+specifying customization at the operator level in generic code can become quite
+cumbersome. For this reason, in this paper, we only devote our attention to the
+operator algebra between linear algebraic types. As a matter of exposition, we
+currently limit ourselves to only one operator, the \inlinecode{operator+}
+between vectors, but one can see that the design can very well extend to other
+operators as well. In the next versions of this paper, we plan to include more
+operators in the exposition.
+
+The central idea of the paper is to use a configurable template parameter named
+as \inlinecode{engine} and then use that as a customization point to select
+correct algorithms. This also implies that instead of writing operators for
+specific types, we write operators for types with the corresponding engine
+parameter. This allows us to remove the domain of binary operators from the
+namespaces of the types into the namespaces of the engine, giving users a better
+control over customization.
+
+\section{Some Uses Cases and Scenarios}
+
+In order to motivate the rest of the paper, we now lay out a couple of scenarios
+which are not generally supported by different linear algebra libraries today,
+but which we expect to be satisfied in the current scenario.
+\begin{enumerate}
+  \item Operations Between Types of Different Libraries.
+
+\begin{acodecpp}{}
+auto const x = a::f();  // Returns vector x of type a::vector
+auto const A = b::g();  // Returns a matrix b of type b::matrix
+auto const b = A * x;   // ERROR: operator* not defined!!
+\end{acodecpp}
 In general, there will not be an \inlinecode{operator*} defined for the types
 \inlinecode{a::vector} and \inlinecode{b::matrix}. In fact, there is no good way
 to define an \inlinecode{operator*} in this case without invading on one of the
-two namespaces.  One of the solutions to these problems is to specify some
-vocabulary types and then expect all users to use the given vocabulary types.
-But this approach imposes a restriction on the types that can be designed for
-use with the linear algebra library, and make including new paradigms difficult
-to achieve.
+two namespaces. A classical workaround would be to convert one of the types into
+a compatible type for another which might involve a copy. In this case, where a
+default behavior cannot be expected, we would like to design a solution wherein
+the user at the call site would be able to specify the which algorithm to use to
+carry out the \inlinecode{operator*}. The user should also be able to specify a
+custom implemented algorithm that the user has implemented.
 
-Consider another example as shown below:
-\begin{codecpp}{Multiplication Operator Between A Vector and a Matrix}
-  auto const x = a::f();  // Returns vector x of type a::vector
-  auto const A = a::g();  // Returns a matrix b of type a::matrix
-  auto const b = A * x;   // Assume that operator* is serial (not parallel)
-\end{codecpp}
+\item Different Algorithms for the Same Operations on the Same Types
+
+\begin{acodecpp}{}
+auto const x = a::f();  // Returns vector x of type a::vector
+auto const A = a::g();  // Returns a matrix b of type a::matrix
+auto const b = A * x;   // Assume that operator* is serial
+\end{acodecpp}
 Assume that the \inlinecode{operator*} is serial in this case. But suppose that
 the user wants to allow the computation to be parallel (or probably offloaded to
 the GPU) in only some places in the code while requiring the computation to run
 in serial in other places. There can be quite a few scenarios where such a
 behavior is desirable. For example, it is possible that the operator which is
 expected to run in serial is already a part of a parallelly-executed code
-segment.
-
-Apart from these problems, there are other issues which need to be
-tackled
-
-Talk about objective, talk about how the objectives show themselves in terms of
-customization, operator algebra and other things. Discuss Blaze library
-multiplication. Discuss difficulties of move operations with a+b. and so on.
-Operators are important, why? Generic algorithm. Examples. How operators
-differ.  Deciding which algorithm to use to implement operators. Why are
-operators important? Discuss expression templates.
-About expression templates refer to Klaus Igelberger paper. Move operations in
-C++, and problems with expresion templates. Finally, discuss the situation about
-different library types.
-
-common vocabulary types to allow different code bases to use each other without
-having to make intermediate copies.
-
-
-The problems arise when one tries to deal with operators. For example, how
-should the expression \inlinecode{a+b}. Should we return a view? Or an
-expression template? Or are we consuming a temporary and hence, should return by
-value. How to deal with \inlinecode{a+b} where \inlinecode{a} and \inlinecode{b}
-might belong to a different library. In current setups, there is no hope of
-interoperability, because none/both of the libraries might implement
-\inlinecode{a+b}. Both the situations are not ideal.
-Is there a way to provide some interoperability? Optimal interoperability will
-still require one to be careful, but can we provide a way to do it in a way that
-is consistent with other good practices in C++?
-
-
-Single type/library design. Dilemna of mixing library types.
-\begin{enumerate}
-  \item Comparison with `std::vector`, `boost::vector`,
-    In most algorithms, one can use all the three without any functional
-    difference.
-
-  \item Why should linear algebra be different?
-
-  \item At some point, people will need different types.
-
-  \item Much more beneficial in our opinion to allow a design which accomodates
-    different types rather than ask everyone to use a single type, however good
-    that type is.
-
-  \item Same goes for algorithms.
-
-  \item This also lowers the expectation on the standard library to implement
-    all types. This ensures that people can keep using standard library types
-    and algorithms for their daily use without having to completely throw them
-    away in cases where they wish to use something else.
+segment. In this design, we want to be able to use the same underlying storage,
+but carry out different algorithms on these types.
 \end{enumerate}
 
-So, allow the user to be able to custom define operations like \inlinecode{a+b}
-where a and b belong to different libraries.
+Another problem which is generally discussed in the context of modern
+linear algebra libraries the interaction of the \inlinecode{auto} keyword with
+the expression templates.  Solutions to these issues do exists, for example, it
+has been suggested that one should detect if a temporary is being consumed by
+the operator and, if that is the case, then one should return an owning value
+instead of an expression or a view. We show how this can also be taken care of
+in the framework of operators which we present here.
 
-This also lowers the expectation on the standard library design itself. Because
-if the there is something which is not there in the standard library or if the
-standard library for some reason or the another is not the fastest option, then
-people can use other libraries without having to completely redesign their
-code/introduce expensive copies.
-
-\subsection{Some Comments about the Paper}
-This is not a proposal about including certain linear algebra types or functions
-in the standard library. Rather, it is a paper which presents how the types and
-functions can be designed to allow types from different library to interact
-with one another. Therefore the types presented in this paper are minimal in
-that, only the features required to highlight the functionality are implemented.
-
-We are aware that a lot of language in the paper can be rewritten in the
-form of Concepts but we are not comfortable with the language and decided to use
-a traits based exposition in order to make sure that we do not introduce
-additional errors in the papers.
-
-\subsection{A Comment about the Code}
-
+%\subsection{Some Comments about the Paper}
+%This is not a proposal about including certain linear algebra types or functions
+%in the standard library. Rather, it is a paper which presents how the types and
+%functions can be designed to allow types from different library to interact
+%with one another. Therefore the types presented in this paper are minimal in
+%that, only the features required to highlight the functionality are implemented.
+%
+%We are aware that a lot of language in the paper can be rewritten in the
+%form of Concepts but we are not comfortable with the language and decided to use
+%a traits based exposition in order to make sure that we do not introduce
+%additional errors in the papers.
+%
+%\subsection{A Comment about the Code}
+%The code for the paper is being currently developed at
+%\url{https://github.com/jayeshbadwaik/1635-proof-of-concept}.
 \section{Some Traits}
 We start with introducing some trait types which will be useful for the
 discussion later.
@@ -162,96 +155,143 @@ struct uses_engine ;
 
 
 \begin{codecpp}{Supporting Traits}
-
-
 // Inherit from std::true_type if all the `Tp`s have a member typedef
 // `is_owning_type` and the type `is_owning_type` is convertible to
 // `std::true_type` else inherit from std::false_type
 template <typename... Tp>
 struct is_owning_type ;
 
-// Inherit from std::true_type if any one of the `T` satisfy both of the
+// Inherit from std::true_type if any one of the `Tp`s satisfy both of the
 // following properties:
-// 1. std::is_owning_type_v<std::remove_cv_ref_t<T>> is true
-// 2. std::is_rvalue_reference_v<T> is true
+// 1. std::is_owning_type_v<std::remove_cv_ref_t<Tp>> is true
+// 2. std::is_rvalue_reference_v<Tp> is true
 template <typename... Tp>
 struct is_consuming_owning_type;
 \end{codecpp}
 
 
 
-\section{Engine-Aware Types}
-The dilemna for defining `a+b` without copy comes from the fact that if one
-follows the good practices of not declaring operator for in the namespace of
-someone else, neither `a` nor `b` nor the user `c` can define the
-`operator+(a,b)`. We resolve this difficulty as follows:
+\section{Engine Compatible Types}
 
+We next describe the engine compatible types. We list out the requirements which
+the types should satisfy in order to be interoperable with other similarly
+designed types. We describe the types in two flavors: an engine compatible
+owning type and a engine compatible non-owning type. The owning types are the
+types which have their own storage and hence cannot be cheaply copied. While the
+non-owning types are types which do not have their own storage, and instead
+point to other types or an expression of types. Examples are vector views
+and expression templates .
 
+\subsection{An Engine Compatible Non-Owning Type}
 
-\begin{codecpp}{An Engine-Aware Owning Type}
-  template<typename E>
-  class vector {
-  public:
-    using engine_type = E;
-    using is_owning_type = std::true_type;
+These kinds of types  consists of views and expression templates, which do not
+have any storage of their own. These objects should only be constructible from
+non-temporary objects (hence the requirement of references and const-references
+in the constructor).
 
-  public:
-    template <typename NE>
-    auto change_engine() && -> vector<NE>;
-
-    template <typename NE>
-    auto change_engine() & -> vector_view<NE, vector<E>>;
-
-    template <typename NE>
-    auto change_engine() const& -> vector_view<NE, vector<E> const>;
-  };
-\end{codecpp}
-
-\begin{codecpp}{An Engine-Aware View/Expression Type}
-  template<typename E>
-  class vector_view {
+\begin{codecpp}{An Engine Compatible Non-Owning Type}
+  template<typename E, typename OT>
+  class egnot {
   public:
     using engine_type = E;
     using is_owning_type = std::false_type;
 
   public:
     template <typename NE>
-    auto change_engine() const -> vector_view<NE, owning_type>;
+    auto change_engine() const -> egnot<NE, OT>;
+
+    egnot(OT & ot);
+    egnot(OT const& it);
+  };
+\end{codecpp}
+
+As we can see, the type requires us to export an \inlinecode{engine\_type} and
+specify that it is not an owning type by specifying \inlinecode{is\_owning\_type}
+as \inlinecode{std::false\_type}. Given a non-owning object with an engine
+parameter \inlinecode{E}, one should be able to construct another non-owning
+object from it, which points to the same underlying storage in an identical
+manner but which exports a different engine type \inlinecode{NE}. This is the
+facility that should be provided by the \inlinecode{change\_engine} method.
+
+\subsection{A Engine Compatible Non-Owning Type}
+These kind of types actually own the storage. Just as with non-owning types,
+they export the engine type, they assert that they are an owning type. Unlike
+the non-owning types, owning types need multiple different versions
+\inlinecode{change\_engine} method. When operating on a temporary, the method
+should return another owning type which exports the updated engine parameters.
+When operating on a non-temporary instead, it returns a non-owning type
+referring to the underlying owning type with proper const qualifications.
+
+\begin{codecpp}{An Engine Compatible Owning Type}
+  template<typename E>
+  class egot {
+  public:
+    using engine_type = E;
+    using is_owning_type = std::true_type;
+
+  public:
+    template <typename NE>
+    auto change_engine() && -> egot<NE>;
+
+    template <typename NE>
+    auto change_engine() & -> egnot<NE, egot<E>>;
+
+    template <typename NE>
+    auto change_engine() const& -> egnot<NE, egot<E> const>;
   };
 \end{codecpp}
 
 \section{Engine and Engine-Based Operators}
 
-\begin{codecpp}{Engine and Engine-Based Operator}
-struct serial_cpu_engine;
+Now that we have described how the types in this paradigms should look, we now
+describe how the \inlinecode{operator+} can be implemented using these
+principles. All of the code implemented below is in the same namespace.  We
+first define an engine named \inlinecode{serial\_cpu\_engine}. As the name
+suggest, the storage and the computations are both done on the CPU and the
+algorithm is serial.  The engine above is stateless, but it doesn't have to be,
+and customizations can be made based on the underlying hardware.
 
+\begin{codecpp}{A Serial CPU Engine}
+  struct serial_cpu_engine{};
+\end{codecpp}
+
+Next we define the \inlinecode{addition\_traits}. The purpose of
+\inlinecode{addition\_traits} is to determine the return type of the expression.
+Here is the place where one can determine whether to return an owning type (by
+value) or a non-owning type (a view or an expression). This can be achieved, for
+example, by checking if either of \inlinecode{T} and \inlinecode{U} satisfies
+the \inlinecode{std::is\_rvalue\_reference<T>} trait and the
+\inlinecode{is\_consuming\_owning\_type} trait mentioned before.
+
+\begin{codecpp}{Addition Engine Traits}
 template <typename T, typename U>
 struct addition_traits {
   using result_type = X ; // X can be determined using any logic required
 };
+\end{codecpp}
 
-template <typename T, typename U>
-struct addition_engine {
-  auto operator()(T&& t, U&& u) -> addition_traits_r<T, U>
-  {
-    auto const size = t.size();
-    auto result = addition_traits_r<T, U>(size);
-    for (std::size_t i = 0; i < size; ++i) {
-      result(i) = t(i) + u(i);
-    }
-  }
-};
+Finally, we describe the engine based operator for the above engine. Given types
+\inlinecode{T} and \inlinecode{U}, the operator described below can be found by
+ADL by the virtue of being in the same namespace as
+\inlinecode{serial\_cpu\_engine}. The way we can ensure that this is the best
+match is by ensuring that there are no explicit operators defined for
+\inlinecode{T} and \inlinecode{U}. The similar operators in the same  namespace
+but attached to different engines are ruled out by the condition in the template
+parameters.
 
+\begin{codecpp}{Engine-Based Operator}
 template <typename T,
           typename U,
           typename = std::enable_if<
             std::experimental::math::uses_engine_v<serial_cpu_engine, T, U>>>
-auto operator+(T&& t, U&& u) -> addition_traits_r<T&&, U&&>
-{
-  auto constexpr ae = addition_engine<T, U>();
-  return ae(std::forward<T>(t), std::forward<U>(u));
-}
+auto operator+(T&& t, U&& u) -> addition_traits_r<T&&, U&&>;
+\end{codecpp}
 
+In case one wants the operator to inherit the behavior of an operator attached
+to a different engine, then one can implement the above operator as below, where
+we can see that the lifetime issues take care of themselves.
+
+\begin{codecpp}{Inheriting Behavior of Operator from Another Engine}
 template <typename T,
           typename U,
           typename = std::enable_if<
@@ -260,31 +300,23 @@ auto operator+(T&& t, U&& u) -> addition_traits_r<T&&, U&&>
 {
   return t.change_engine<some_other>() + u.change_engine<some_other>();
 }
-
 \end{codecpp}
-\section{Some Musings on Design Decisions}
-Compile Times due to SFINAE
-IsVector trait
-\subsection{Use of ADL in Detection of Correct Operator Namespace}
-Justification and Pitfalls (Could also be thought of as good design decisions.)
 
-Good practice is not to write operators for linear algebra types but instead
-write them for the engines.
-\subsection{More Fine Tuned Traits}
-Arbitrarily more finely tuned traits can be taken care of the
-\inlinecode{addition\_traits}.  But we should be careful as to prevent trait
-explosion.
-\begin{enumerate}
-  \item  `Sparsity`  trait definitely needed
-  \item  `Host/Device` trait should be useful
-  \item  Access Pattern Traits
-\end{enumerate}
-\section{Example}
+\section{Example Code}
+In this example, we show how the code works with a combination of vectors from
+different libraries and of different structure. \inlinecode{sce} is an engine
+which has an associated operator \inlinecode{operator+} which computes addition
+of two vectors stored on CPU in a serial manner. \inlinecode{pce} is an engine
+which has an associated operator \inlinecode{operator+} which computes the
+addition in a multi-threaded environment. \inlinecode{std::math::vector} is the
+vector implemented in \inlinecode{std::math} namespace which satisfies the
+requirements placed in the paper on the owning types and
+\inlinecode{another\_lib::vector} is another vector implemented in
+\inlinecode{another\_lib} namespace with similar qualities.
 
-\begin{codecpp}{Example of How the Code Might Look}
-
-  using sce = std::math::serial_cpu_engine;
-  using pce =custom_lib::parallel_cpu_engine;
+\subsection{Serial Code for Multiplication of Two Vectors}
+\begin{codecpp}{Serial Code for Multiplication of Two Vectors}
+  using sce = std::math::sce;
   using stdvec = std::math::vector;
   using custvec = another_lib::vector;
 
@@ -293,14 +325,44 @@ explosion.
 
   auto const view_3 = ov1 + ov2;
 
-  auto const view_4 = ov1.change_engine<pce>();
-  auto const ov5 = (custvec<sce>(args...)).change_engine<pce>();
-
-  auto const view_6 = view_4 + ov5;
-
-  auto const ov7 = stdvec<pce>(args...) + ov1;
-
+  auto const ov4 = stdvec<sce>(args...) + ov1;
 \end{codecpp}
+
+In the above code, because \inlinecode{ov1} and \inlinecode{ov2} are not
+temporaries, the addition will return a view or an expression. But then in the
+second operation, we will get a return by a value.
+
+\subsection{Parallel Code for Multiplication of Two Vectors}
+Assume that the function \inlinecode{f()} returns an object of type owning type
+by value but exports engine \inlinecode{sce} in its engine type.
+\begin{codecpp}{Parallel Code for Multiplication of Two Vectors}
+  using sce = std::math::sce;
+  using pce = std::math::pce;
+  using stdvec = std::math::vector;
+  using custvec = another_lib::vector;
+
+  auto const ov1 = stdvec<sce>(arg...);
+  auto const ov2 = custvec<pce>(arg...);
+
+  auto const view_3 = ov1.change_engine<pce>() + ov2;
+  auto const ov4 = f().change_engine<pce>() + ov2.change_engine<pce>();
+\end{codecpp}
+
+
+
+
+\section{Conclusions and Musings}
+
+So, in this paper, we have described design decisions which make the code shown
+in the two examples work.  The paper is still in its very early design phase.
+While we can show that the proof of concept works, the question on whether it
+remains a good design with manageable complexity still remains. While we believe
+that the complexity is manageable, it has not yet been shown in a proof of
+concept code for the same. Conditional on the response to the design here, we
+will invest more time in writing a more details examples which take into account
+other factors such as sparsity of the matrix, static dimensions of the matrix,
+GPGPU storage among other things.
+
 \section{Acknowledgement}
 A lot of ideas have been gathered by participating in the SG14 Linear Algebra
 SIG discussions, reading the codebases like Eigen, MTL, Blaze and others etc.
