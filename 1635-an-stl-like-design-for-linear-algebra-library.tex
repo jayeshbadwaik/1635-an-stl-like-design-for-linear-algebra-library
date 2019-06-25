@@ -4,7 +4,7 @@
 
 \subject{}
 \subtitle{}
-\title{D1635R0 : A Design for an Inter-Operable and Customizable Linear Algebra Library}
+\title{P1635R0 : A Design for an Inter-Operable and Customizable Linear Algebra Library}
 \author{Jayesh Badwaik}
 
 \begin{document}
@@ -129,10 +129,6 @@ in the framework of operators which we present here.
 %form of Concepts but we are not comfortable with the language and decided to use
 %a traits based exposition in order to make sure that we do not introduce
 %additional errors in the papers.
-%
-%\subsection{A Comment about the Code}
-%The code for the paper is being currently developed at
-%\url{https://github.com/jayeshbadwaik/1635-proof-of-concept}.
 \section{Some Traits}
 We start with introducing some trait types which will be useful for the
 discussion later.
@@ -365,7 +361,14 @@ GPGPU storage among other things.
 
 \section{Acknowledgement}
 A lot of ideas have been gathered by participating in the SG14 Linear Algebra
-SIG discussions, reading the codebases like Eigen, MTL, Blaze and others etc.
+SIG discussions, reading the codebases like Eigen, MTL, Blaze and others etc. I
+would also like to thank various people in Slack C++ workspace for answering a
+lot of my questions about C++ in relation to the above paper.
+
+
+\section{A Comment about the Code}
+The code for the paper is being currently developed at
+\url{https://github.com/liblac/proof-of-concept}.
 
 \printbibliography
 \end{document}
